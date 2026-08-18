@@ -57,12 +57,27 @@ The 2026 draft-room bundle connects to a dedicated draft service, not the v3 API
    `SELECTING {teamId} {timeToPick}`, `CLOCK`, `STATE`, `UNDONE {pickNumber}`, `JOINED`, `CHAT`,
    and `INIT {base64 protobuf}` for the initial snapshot.
 
-Both the socket and SSE endpoints currently answer `HTTP 500 LeagueId was either missing or
-invalid` for this league, which is consistent with the draft room only existing once the draft is
-live. **Open question:** whether `mDraftDetail` updates during a live ESPN draft (a maintained
-draft-room extension polls the v3 API live; the popular Python wrapper claims it only updates
-post-draft). Until that is confirmed on a live/mock ESPN draft, manual cross-off is the ESPN
-safety net, and the socket transport above is the upgrade path if polling proves stale.
+Both the socket and SSE endpoints answer `HTTP 500 LeagueId was either missing or invalid` for a
+pre-draft league **and for a live mock league**, so the JOIN query params (security token, member
+id, team id) are almost certainly required rather than optional.
+
+### Live mock draft observations (2026-08-18)
+
+Two ESPN mock drafts (`186119181`, `260271171`, 12-team PPR snake) were polled every 5s from before
+kickoff until they ended:
+
+- `draftDetail.inProgress` flipped to `true` at draft time — so the league document *does* change
+  during the draft.
+- `draftDetail.picks` stayed all `playerId: -1` for the entire ~20-minute draft, and
+  `mRoster` stayed empty.
+- Immediately after each draft ended, the whole league started returning `404` — ESPN discards mock
+  leagues, so their picks are never persisted anywhere.
+
+Because mock results are thrown away, this does **not** prove that a real league's `mDraftDetail`
+stays empty mid-draft; it only shows that mocks are not a usable proxy. So for ESPN the app treats
+polling as best-effort and manual cross-off as the guaranteed path, with the socket transport above
+as the upgrade if polling proves stale on the real draft. Sleeper needs none of this — its picks
+endpoint is live-accurate.
 
 ## FantasyPros
 

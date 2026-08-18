@@ -43,15 +43,18 @@ export default function Setup({
   const [parseMsg, setParseMsg] = useState<string | null>(null);
   const [loadingFp, setLoadingFp] = useState(false);
 
-  const addSet = (players: RankingSet["players"], name: string, scoring?: ScoringFormat) => {
-    const set: RankingSet = {
-      id: `rs_${Date.now()}`,
-      name,
-      createdAt: Date.now(),
-      players,
-      scoring,
-    };
-    onUpdateApp((prev) => ({ ...prev, rankingSets: [...prev.rankingSets, set] }));
+  /** `id` is stable for re-importable sources, so re-loading replaces instead of piling up. */
+  const addSet = (
+    players: RankingSet["players"],
+    name: string,
+    scoring?: ScoringFormat,
+    id = `rs_${Date.now()}`,
+  ) => {
+    const set: RankingSet = { id, name, createdAt: Date.now(), players, scoring };
+    onUpdateApp((prev) => ({
+      ...prev,
+      rankingSets: [...prev.rankingSets.filter((s) => s.id !== id), set],
+    }));
     onUpdateDraft((prev) => ({ ...prev, rankingSetId: set.id }));
   };
 
@@ -67,6 +70,7 @@ export default function Setup({
         players,
         `FantasyPros ${SCORING_LABELS[scoring]}${body.updated ? ` (${body.updated})` : ""}`,
         scoring,
+        `fp_${scoring}`,
       );
       setParseMsg(`Loaded ${players.length} FantasyPros ${SCORING_LABELS[scoring]} rankings.`);
     } catch (err) {
