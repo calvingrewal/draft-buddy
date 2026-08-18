@@ -147,3 +147,26 @@ describe("roster needs", () => {
     ).toEqual(["QB", "WR"]);
   });
 });
+
+describe("rankings warnings and defenses", () => {
+  it("keeps DST as the position for plain-list defense lines", () => {
+    const { players } = parseRankings("1. Ravens D/ST\n2. 49ers DEF");
+    expect(players.map((p) => p.pos)).toEqual(["DST", "DST"]);
+    expect(players[0].name).toBe("Ravens");
+    expect(players[0].key).toBe("dst:BAL");
+  });
+
+  it("warns about skipped blank and duplicate rows", () => {
+    const { players, warnings } = parseRankings(
+      [
+        "RK,PLAYER NAME,TEAM,POS,BYE WEEK",
+        "1,Ja'Marr Chase,CIN,WR1,10",
+        "2,,ATL,RB1,5",
+        "3,Ja'Marr Chase,CIN,WR1,10",
+      ].join("\n"),
+    );
+    expect(players).toHaveLength(1);
+    expect(warnings.join(" ")).toMatch(/1 row\(s\) with no player name/);
+    expect(warnings.join(" ")).toMatch(/1 duplicate/);
+  });
+});

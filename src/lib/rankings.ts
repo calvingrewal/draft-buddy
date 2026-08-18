@@ -1,6 +1,7 @@
 import {
   POSITION_TOKENS,
   TEAM_ABBREVIATIONS,
+  looksLikeDefense,
   normalizePos,
   normalizeTeam,
   playerKey,
@@ -98,7 +99,10 @@ interface PlainRow {
  * "12 Jonathan Taylor (IND - RB)" or a bare name.
  */
 function parsePlainLine(line: string): PlainRow | null {
-  const cleaned = line.replace(/[()\[\]]/g, " ").replace(/\s*[|/–—]\s*/g, " ");
+  const cleaned = line
+    .replace(/[()\[\]]/g, " ")
+    .replace(/\bD\s*\/\s*ST\b/gi, "DST")
+    .replace(/\s*[|/–—]\s*/g, " ");
   const rankMatch = cleaned.match(/^\s*(\d{1,3})\s*[.)\-:]?\s+/);
   const rank = rankMatch ? Number(rankMatch[1]) : null;
   const rest = rankMatch ? cleaned.slice(rankMatch[0].length) : cleaned;
@@ -126,6 +130,7 @@ function parsePlainLine(line: string): PlainRow | null {
   }
   const name = tokens.join(" ").trim();
   if (!name) return null;
+  if (!pos && looksLikeDefense(name)) pos = "DST";
   return { rank, name, pos, team };
 }
 
@@ -145,11 +150,20 @@ export function parseRankings(text: string): ParseResult {
 
   const players: RankedPlayer[] = [];
   const seen = new Set<string>();
+  let duplicates = 0;
   const push = (p: Omit<RankedPlayer, "key">) => {
     const key = playerKey(p.name, p.pos, p.team);
-    if (!key || seen.has(key)) return;
+    if (!key) return;
+    if (seen.has(key)) {
+      duplicates++;
+      return;
+    }
     seen.add(key);
     players.push({ ...p, key });
+  };
+  const describeSkipped = (unnamed: number) => {
+    if (unnamed > 0) warnings.push(`Skipped ${unnamed} row(s) with no player name.`);
+    if (duplicates > 0) warnings.push(`Skipped ${duplicates} duplicate player(s).`);
   };
 
   if (structured) {
@@ -159,10 +173,14 @@ export function parseRankings(text: string): ParseResult {
         "Could not find a player-name column in the header row; parsed rows as plain names instead.",
       );
     } else {
+      let unnamed = 0;
       lines.slice(1).forEach((line, i) => {
         const cells = splitRow(line, delim);
         const name = (header.name !== undefined ? cells[header.name] : "") || "";
-        if (!name) return;
+        if (!name) {
+          unnamed++;
+          return;
+        }
         push({
           rank: num(header.rank !== undefined ? cells[header.rank] : "") ?? i + 1,
           name,
@@ -176,6 +194,7 @@ export function parseRankings(text: string): ParseResult {
       });
       if (players.length > 0) {
         players.sort((a, b) => a.rank - b.rank);
+        describeSkipped(unnamed);
         return { players: renumber(players), warnings };
       }
       warnings.push("Header looked structured but no player rows parsed.");
@@ -198,6 +217,7 @@ export function parseRankings(text: string): ParseResult {
     });
   });
   players.sort((a, b) => a.rank - b.rank);
+  describeSkipped(0);
   return { players: renumber(players), warnings };
 }
 

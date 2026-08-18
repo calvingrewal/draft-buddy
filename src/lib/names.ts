@@ -106,7 +106,7 @@ export function playerKey(
   return n;
 }
 
-function looksLikeDefense(name: string): boolean {
+export function looksLikeDefense(name: string): boolean {
   const n = normalizeName(name);
   if (/\b(dst|def|defense)\b/.test(n)) return true;
   return n.split(" ").some((w) => w in NFL_TEAMS);

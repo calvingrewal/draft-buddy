@@ -57,7 +57,8 @@ export function useDraftFeed(
 
   useEffect(() => {
     if (!id) return;
-    void fetchOnce();
+    // Debounced so typing a league id doesn't fire (and fail) a request per keystroke.
+    const first = window.setTimeout(() => void fetchOnce(), 600);
     const ms = Math.max(2, pollSeconds) * 1000;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void fetchOnce();
@@ -67,6 +68,7 @@ export function useDraftFeed(
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
+      window.clearTimeout(first);
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
