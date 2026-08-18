@@ -6,8 +6,12 @@ rosters, and how many picks until you're on the clock.
 
 ## How it works
 
-- **Rankings** are pasted or uploaded in Setup (FantasyPros CSV export works as-is, as does a plain
-  ranked list of names) and stored in the browser — no account, no database.
+- **Rankings** come from one tap on "Load FantasyPros rankings" in Setup, which pulls the current
+  consensus (ECR) cheatsheet for the league's scoring format; pasting or uploading a CSV/TSV or a
+  plain ranked list still works. Either way they are stored in the browser — no account, no database.
+- **Scoring format** is read from league settings (ESPN's receptions scoring item, Sleeper's
+  `scoring_settings.rec`) and buckets into Standard / Half PPR / Full PPR, which decides which
+  cheatsheet gets loaded. Setup has a manual override if a league reports something odd.
 - **Picks** come from a server route that polls the platform: Sleeper's public draft API, and
   ESPN's private `lm-api-reads.fantasy.espn.com` v3 API using your league cookies.
 - **Matching** is by normalized name (suffixes, punctuation and team-defense naming are handled),
@@ -50,6 +54,8 @@ npm test           # vitest (name matching, rankings parsing, snake order, needs
 - `src/lib/sleeper.ts`, `src/lib/espn.ts` — platform adapters that normalize into `DraftState`
 - `src/lib/derive.ts` — drafted index, board, rosters, roster needs, pick clock
 - `src/lib/rankings.ts`, `src/lib/names.ts` — rankings import and cross-source player matching
+- `src/lib/fantasypros.ts`, `src/app/api/rankings/route.ts` — consensus cheatsheet fetch/parse
+- `src/lib/scoring.ts` — points-per-reception → Standard / Half PPR / Full PPR
 - `src/app/api/draft/route.ts` — polled snapshot endpoint
 - `src/components/*` — Board / My team / Teams / Log / Setup tabs
 

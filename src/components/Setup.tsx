@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { parseRankings } from "@/lib/rankings";
+import { SCORING_LABELS } from "@/lib/scoring";
 import type { AppState, DraftConfig, RankingSet } from "@/lib/store";
-import type { DraftPick, DraftState, Platform } from "@/lib/types";
+import type { DraftPick, DraftState, Platform, ScoringFormat } from "@/lib/types";
 
 export interface ServerConfig {
   season: string;
@@ -40,6 +41,42 @@ export default function Setup({
   const [paste, setPaste] = useState("");
   const [setName, setSetName] = useState("");
   const [parseMsg, setParseMsg] = useState<string | null>(null);
+  const [loadingFp, setLoadingFp] = useState(false);
+
+  const addSet = (players: RankingSet["players"], name: string, scoring?: ScoringFormat) => {
+    const set: RankingSet = {
+      id: `rs_${Date.now()}`,
+      name,
+      createdAt: Date.now(),
+      players,
+      scoring,
+    };
+    onUpdateApp((prev) => ({ ...prev, rankingSets: [...prev.rankingSets, set] }));
+    onUpdateDraft((prev) => ({ ...prev, rankingSetId: set.id }));
+  };
+
+  const loadFantasyPros = async () => {
+    setLoadingFp(true);
+    setParseMsg(null);
+    try {
+      const res = await fetch(`/api/rankings?scoring=${scoring}`, { cache: "no-store" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
+      const players = body.players as RankingSet["players"];
+      addSet(
+        players,
+        `FantasyPros ${SCORING_LABELS[scoring]}${body.updated ? ` (${body.updated})` : ""}`,
+        scoring,
+      );
+      setParseMsg(`Loaded ${players.length} FantasyPros ${SCORING_LABELS[scoring]} rankings.`);
+    } catch (err) {
+      setParseMsg(
+        `FantasyPros import failed: ${err instanceof Error ? err.message : "unknown error"}. Paste rankings below instead.`,
+      );
+    } finally {
+      setLoadingFp(false);
+    }
+  };
 
   const saveRankings = () => {
     const { players, warnings } = parseRankings(paste);
@@ -47,14 +84,7 @@ export default function Setup({
       setParseMsg(warnings.join(" ") || "Nothing parsed — check the format.");
       return;
     }
-    const set: RankingSet = {
-      id: `rs_${Date.now()}`,
-      name: setName.trim() || `Rankings ${new Date().toLocaleDateString()}`,
-      createdAt: Date.now(),
-      players,
-    };
-    onUpdateApp((prev) => ({ ...prev, rankingSets: [...prev.rankingSets, set] }));
-    onUpdateDraft((prev) => ({ ...prev, rankingSetId: set.id }));
+    addSet(players, setName.trim() || `Rankings ${new Date().toLocaleDateString()}`, scoring);
     setPaste("");
     setSetName("");
     setParseMsg(
@@ -65,6 +95,9 @@ export default function Setup({
   const manualCount = Object.keys(draft.manualDrafted).length;
   const defaultId =
     platform === "espn" ? serverConfig?.espnLeagueId : serverConfig?.sleeperLeagueId;
+  const detected = state?.scoring ?? null;
+  const scoring: ScoringFormat = draft.scoringOverride || detected?.format || "half";
+  const selectedSet = app.rankingSets.find((s) => s.id === draft.rankingSetId);
 
   return (
     <div className="space-y-6 p-3 pb-10">
@@ -128,7 +161,44 @@ export default function Setup({
       </section>
 
       <section className="space-y-2">
+        <div className={label}>Scoring</div>
+        <p className="text-xs text-neutral-400">
+          {detected?.detected
+            ? `League settings say ${detected.pointsPerReception} pt per reception → ${SCORING_LABELS[detected.format]}.`
+            : "Could not read scoring from the league yet — pick it manually."}
+        </p>
+        <select
+          className={input}
+          value={draft.scoringOverride}
+          onChange={(e) =>
+            onUpdateDraft((prev) => ({
+              ...prev,
+              scoringOverride: e.target.value as ScoringFormat | "",
+            }))
+          }
+        >
+          <option value="">
+            Auto{detected?.detected ? ` — ${SCORING_LABELS[detected.format]}` : ""}
+          </option>
+          {(Object.keys(SCORING_LABELS) as ScoringFormat[]).map((f) => (
+            <option key={f} value={f}>
+              {SCORING_LABELS[f]}
+            </option>
+          ))}
+        </select>
+      </section>
+
+      <section className="space-y-2">
         <div className={label}>Rankings</div>
+        <button
+          onClick={loadFantasyPros}
+          disabled={loadingFp}
+          className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold disabled:opacity-60"
+        >
+          {loadingFp
+            ? "Loading…"
+            : `Load FantasyPros ${SCORING_LABELS[scoring]} rankings`}
+        </button>
         <select
           className={input}
           value={draft.rankingSetId}
@@ -141,6 +211,12 @@ export default function Setup({
             </option>
           ))}
         </select>
+        {selectedSet?.scoring && selectedSet.scoring !== scoring ? (
+          <p className="text-xs text-amber-400">
+            Selected rankings are {SCORING_LABELS[selectedSet.scoring]} but this league is{" "}
+            {SCORING_LABELS[scoring]}.
+          </p>
+        ) : null}
         {draft.rankingSetId ? (
           <button
             onClick={() => {

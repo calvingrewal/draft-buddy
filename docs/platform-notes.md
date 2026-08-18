@@ -35,6 +35,16 @@ draft** with `playerId: -1` placeholders, which gives the full board (round, rou
 front; `playerId` is filled in as picks are made. `defaultPositionId` maps 1=QB, 2=RB, 3=WR, 4=TE,
 5=K, 16=D/ST.
 
+### Scoring format
+
+Both platforms expose points per reception, so the Standard / Half PPR / Full PPR bucket is
+detected rather than asked for (with a manual override in Setup as the fallback):
+
+| Platform | Field | Real value |
+| --- | --- | --- |
+| ESPN | `settings.scoringSettings.scoringItems[]` where `statId === 53` (receptions), `points` (or `pointsOverrides["16"]`) | `0.5` → Half PPR |
+| Sleeper | `scoring_settings.rec` | `1.0` → Full PPR |
+
 ### Live draft room transport (not used yet)
 
 The 2026 draft-room bundle connects to a dedicated draft service, not the v3 API:
@@ -53,3 +63,11 @@ live. **Open question:** whether `mDraftDetail` updates during a live ESPN draft
 draft-room extension polls the v3 API live; the popular Python wrapper claims it only updates
 post-draft). Until that is confirmed on a live/mock ESPN draft, manual cross-off is the ESPN
 safety net, and the socket transport above is the upgrade path if polling proves stale.
+
+## FantasyPros
+
+The consensus cheatsheet pages (`consensus-cheatsheets.php`, `half-point-ppr-cheatsheets.php`,
+`ppr-cheatsheets.php`) embed their whole ranking table as a `var ecrData = {…};` literal, so the
+server route brace-matches that object and parses it as JSON — no HTML scraping. Player records
+carry `player_name`, `player_team_id`, `player_position_id`, `player_bye_week`, `rank_ecr`,
+`pos_rank` and `tier`. Verified live: 498 (STD) / 861 (HALF) / 503 (PPR) players, QB/RB/WR/TE/K/DST.

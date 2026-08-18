@@ -1,4 +1,5 @@
 import { normalizePos } from "./names";
+import { defaultScoring, scoringFromPpr } from "./scoring";
 import { snakeTeamId } from "./sleeper";
 import type { DraftPick, DraftState, DraftTeam, PlayerRef } from "./types";
 
@@ -88,6 +89,9 @@ interface EspnLeague {
       timePerSelection?: number;
     };
     rosterSettings: { lineupSlotCounts: Record<string, number> };
+    scoringSettings?: {
+      scoringItems?: Array<{ statId: number; points?: number; pointsOverrides?: Record<string, number> }>;
+    };
   };
   teams: Array<{ id: number; name?: string; abbrev?: string; location?: string; nickname?: string }>;
   draftDetail: {
@@ -162,6 +166,18 @@ async function getPlayerIndex(season: string): Promise<Map<number, PlayerRef>> {
   }
   playerCache = { season, fetchedAt: Date.now(), byId };
   return byId;
+}
+
+/** ESPN stat id 53 is receptions; its points value is the league's PPR setting. */
+const RECEPTIONS_STAT_ID = 53;
+
+function espnScoring(league: EspnLeague) {
+  const item = league.settings.scoringSettings?.scoringItems?.find(
+    (i) => i.statId === RECEPTIONS_STAT_ID,
+  );
+  const points = item?.points ?? item?.pointsOverrides?.["16"];
+  if (typeof points !== "number") return defaultScoring();
+  return scoringFromPpr(points, true);
 }
 
 export interface EspnTarget {
@@ -272,6 +288,7 @@ export async function getEspnState(
     onClockTeamId: onClockPickNo
       ? (onClockFromBoard ?? snakeTeamId(order, onClockPickNo, teamCount))
       : null,
+    scoring: espnScoring(league),
     updatedAt: Date.now(),
     notes,
   };

@@ -2,8 +2,27 @@ import { describe, expect, it } from "vitest";
 import { buildDraftedIndex, remainingNeeds, pickClock } from "../derive";
 import { normalizeName, playerKey } from "../names";
 import { parseRankings } from "../rankings";
+import { defaultScoring, scoringFromPpr } from "../scoring";
 import { snakeTeamId } from "../sleeper";
 import type { DraftState } from "../types";
+
+describe("scoring format detection", () => {
+  it("buckets points per reception into published ranking formats", () => {
+    expect(scoringFromPpr(0, true).format).toBe("std");
+    expect(scoringFromPpr(0.5, true).format).toBe("half");
+    expect(scoringFromPpr(1, true).format).toBe("ppr");
+    expect(scoringFromPpr(1.5, true).format).toBe("ppr");
+  });
+
+  it("marks guessed scoring as undetected", () => {
+    expect(defaultScoring().detected).toBe(false);
+    expect(scoringFromPpr(Number.NaN, false)).toMatchObject({
+      format: "std",
+      pointsPerReception: 0,
+      detected: false,
+    });
+  });
+});
 
 describe("name normalization", () => {
   it("strips suffixes, punctuation and case", () => {
@@ -91,6 +110,7 @@ function fakeState(): DraftState {
     rounds: 2,
     teamCount: 3,
     rosterSlots: ["QB", "RB", "WR", "FLEX"],
+    scoring: scoringFromPpr(1, true),
     teams: [
       { id: "1", name: "A", slot: 1 },
       { id: "2", name: "B", slot: 2 },

@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Platform, RankedPlayer } from "./types";
+import type { Platform, RankedPlayer, ScoringFormat } from "./types";
 
 export interface RankingSet {
   id: string;
   name: string;
   createdAt: number;
   players: RankedPlayer[];
+  /** scoring format the rankings were published for, when known */
+  scoring?: ScoringFormat;
 }
 
 export interface DraftConfig {
@@ -16,6 +18,8 @@ export interface DraftConfig {
   season: string;
   myTeamId: string;
   rankingSetId: string;
+  /** overrides the scoring format detected from league settings; "" = use detected */
+  scoringOverride: ScoringFormat | "";
   /** player keys crossed off by hand when live sync is unavailable */
   manualDrafted: Record<string, string>;
 }
@@ -32,7 +36,14 @@ export interface AppState {
 const STORAGE_KEY = "draft-buddy:state";
 
 function emptyDraft(): DraftConfig {
-  return { id: "", season: "2026", myTeamId: "", rankingSetId: "", manualDrafted: {} };
+  return {
+    id: "",
+    season: "2026",
+    myTeamId: "",
+    rankingSetId: "",
+    scoringOverride: "",
+    manualDrafted: {},
+  };
 }
 
 export function defaultState(): AppState {

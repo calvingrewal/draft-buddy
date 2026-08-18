@@ -1,4 +1,5 @@
 import { normalizePos, normalizeTeam } from "./names";
+import { defaultScoring, scoringFromPpr } from "./scoring";
 import type { DraftPick, DraftState, DraftTeam } from "./types";
 
 const BASE = "https://api.sleeper.app/v1";
@@ -22,6 +23,7 @@ interface SleeperLeague {
   draft_id: string;
   total_rosters: number;
   roster_positions: string[];
+  scoring_settings?: Record<string, number>;
 }
 
 interface SleeperDraft {
@@ -158,6 +160,10 @@ export async function getSleeperState(rawId: string): Promise<DraftState> {
     order,
     picks: normalized,
     onClockPickNo,
+    scoring:
+      typeof league?.scoring_settings?.rec === "number"
+        ? scoringFromPpr(league.scoring_settings.rec, true)
+        : defaultScoring(),
     onClockTeamId: onClockPickNo
       ? snakeTeamId(order, onClockPickNo, teamCount, reversal)
       : null,

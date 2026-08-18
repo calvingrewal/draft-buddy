@@ -21,6 +21,16 @@ export interface DraftTeam {
   slot: number | null;
 }
 
+/** "std" = 0 PPR, "half" = 0.5, "ppr" = 1 point per reception. */
+export type ScoringFormat = "std" | "half" | "ppr";
+
+export interface LeagueScoring {
+  format: ScoringFormat;
+  pointsPerReception: number;
+  /** true when the platform reported points per reception, false when we guessed */
+  detected: boolean;
+}
+
 export interface DraftState {
   platform: Platform;
   draftId: string;
@@ -35,6 +45,7 @@ export interface DraftState {
   picks: DraftPick[];
   onClockPickNo: number | null;
   onClockTeamId: string | null;
+  scoring: LeagueScoring;
   updatedAt: number;
   notes?: string[];
 }
