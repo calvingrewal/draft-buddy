@@ -9,7 +9,9 @@ export async function GET(request: Request) {
   const platform = url.searchParams.get("platform");
   const id = url.searchParams.get("id");
   const season = url.searchParams.get("season") || process.env.DEFAULT_SEASON || "2026";
-  const teamId = url.searchParams.get("teamId") || process.env.DEFAULT_ESPN_TEAM_ID || "";
+  // An explicitly empty teamId means "no team chosen", so it must not fall back to the default.
+  const requestedTeamId = url.searchParams.get("teamId");
+  const teamId = requestedTeamId ?? process.env.DEFAULT_ESPN_TEAM_ID ?? "";
 
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });

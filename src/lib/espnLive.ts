@@ -135,8 +135,8 @@ function startPing(sub: Subscription, token: string) {
 }
 
 async function connect(sub: Subscription) {
-  sub.status = "connecting";
-  sub.error = null;
+  // Retries keep the previous status/error so the UI doesn't flicker between attempts.
+  if (sub.status === "idle") sub.status = "connecting";
   const controller = new AbortController();
   sub.controller = controller;
   try {
@@ -157,6 +157,7 @@ async function connect(sub: Subscription) {
       return;
     }
     sub.status = "open";
+    sub.error = null;
     sub.connectedAt = Date.now();
     sub.lastMessageAt = Date.now();
     startPing(sub, token);
@@ -164,8 +165,9 @@ async function connect(sub: Subscription) {
     sub.status = "waiting";
     sub.error = "stream closed";
   } catch (err) {
+    console.warn("ESPN draft room join failed", err);
     sub.status = "error";
-    sub.error = err instanceof Error ? err.message : "ESPN draft room connection failed";
+    sub.error = "could not join (check your team id)";
   } finally {
     stopPing(sub);
     sub.controller = null;
