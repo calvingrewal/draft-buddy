@@ -1,3 +1,5 @@
+import type { EspnSelection } from "./espnLive";
+import { espnLiveFeed } from "./espnLive";
 import { normalizePos } from "./names";
 import { defaultScoring, scoringFromPpr } from "./scoring";
 import { snakeTeamId } from "./sleeper";
@@ -194,9 +196,38 @@ export function parseEspnTarget(raw: string, seasonFallback: string): EspnTarget
   return { leagueId: league, season };
 }
 
+/**
+ * Fills placeholder board rows with selections from the draft-room stream. ESPN's v3 board can lag
+ * (or never update) during a live draft, while the stream reports each pick immediately; selections
+ * arrive in draft order, so each unseen one takes that team's earliest empty row.
+ */
+export function applyLiveSelections(
+  picks: DraftPick[],
+  selections: EspnSelection[],
+  playerIndex: Map<number, PlayerRef>,
+): number {
+  const known = new Set(
+    picks.flatMap((p) => (p.player ? [p.player.id] : [])),
+  );
+  let filled = 0;
+  for (const sel of selections) {
+    const id = String(sel.playerId);
+    if (known.has(id)) continue;
+    const slot =
+      picks.find((p) => !p.player && p.teamId === sel.teamId) ?? picks.find((p) => !p.player);
+    if (!slot) continue;
+    slot.player =
+      playerIndex.get(sel.playerId) ?? { id, name: `ESPN player ${id}`, pos: "", team: null };
+    known.add(id);
+    filled++;
+  }
+  return filled;
+}
+
 export async function getEspnState(
   rawId: string,
   seasonFallback: string,
+  myTeamId?: string,
 ): Promise<DraftState> {
   const { leagueId, season } = parseEspnTarget(rawId, seasonFallback);
   const league = await espnGet<EspnLeague>(
@@ -221,7 +252,9 @@ export async function getEspnState(
   // ESPN pre-populates a placeholder row for every pick, so the board length is authoritative.
   const rounds =
     rawPicks.length >= teamCount ? Math.floor(rawPicks.length / teamCount) : slotRounds;
-  const needsNames = rawPicks.some((p) => p.playerId > 0);
+  // The draft room only accepts a team you own, so it needs the configured team id.
+  const live = myTeamId ? espnLiveFeed(leagueId, season, myTeamId) : null;
+  const needsNames = rawPicks.some((p) => p.playerId > 0) || Boolean(live?.selections.length);
   const playerIndex = needsNames
     ? await getPlayerIndex(season).catch(() => new Map<number, PlayerRef>())
     : new Map<number, PlayerRef>();
@@ -262,6 +295,8 @@ export async function getEspnState(
     }))
     .sort((a, b) => a.pickNo - b.pickNo);
 
+  const filledFromLive = live ? applyLiveSelections(picks, live.selections, playerIndex) : 0;
+
   const madePicks = picks.filter((p) => p.player).length;
   const totalPicks = rounds * teamCount;
   const complete = league.draftDetail.drafted || madePicks >= totalPicks;
@@ -269,6 +304,9 @@ export async function getEspnState(
   const onClockFromBoard = picks.find((p) => p.pickNo === onClockPickNo)?.teamId;
 
   const notes: string[] = [];
+  if (!myTeamId) {
+    notes.push("Set your ESPN team id to enable the live draft-room feed.");
+  }
   if (league.settings.draftSettings.type !== "SNAKE") {
     notes.push(`ESPN draft type is ${league.settings.draftSettings.type}.`);
   }
@@ -289,6 +327,9 @@ export async function getEspnState(
       ? (onClockFromBoard ?? snakeTeamId(order, onClockPickNo, teamCount))
       : null,
     scoring: espnScoring(league),
+    liveFeed: live
+      ? { status: live.live ? "live" : live.status, filledPicks: filledFromLive, error: live.error }
+      : { status: "off", filledPicks: 0, error: null },
     updatedAt: Date.now(),
     notes,
   };

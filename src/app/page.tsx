@@ -30,7 +30,7 @@ export default function Home() {
 
   const platform = app.active;
   const draft = app.drafts[platform];
-  const feed = useDraftFeed(platform, draft.id, draft.season, app.pollSeconds);
+  const feed = useDraftFeed(platform, draft.id, draft.season, app.pollSeconds, draft.myTeamId);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);

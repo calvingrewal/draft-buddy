@@ -17,23 +17,24 @@ export function useDraftFeed(
   id: string,
   season: string,
   pollSeconds: number,
+  teamId: string,
 ): Feed {
   const [state, setState] = useState<DraftState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const inFlight = useRef(false);
-  const target = useRef({ platform, id, season });
-  target.current = { platform, id, season };
+  const target = useRef({ platform, id, season, teamId });
+  target.current = { platform, id, season, teamId };
 
   const fetchOnce = useCallback(async () => {
-    const { platform: p, id: i, season: s } = target.current;
+    const { platform: p, id: i, season: s, teamId: t } = target.current;
     if (!i || inFlight.current) return;
     inFlight.current = true;
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/draft?platform=${p}&id=${encodeURIComponent(i)}&season=${s}&t=${Date.now()}`,
+        `/api/draft?platform=${p}&id=${encodeURIComponent(i)}&season=${s}&teamId=${encodeURIComponent(t)}&t=${Date.now()}`,
         { cache: "no-store" },
       );
       const body = await res.json();

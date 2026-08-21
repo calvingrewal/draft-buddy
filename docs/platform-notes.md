@@ -58,8 +58,14 @@ The 2026 draft-room bundle connects to a dedicated draft service, not the v3 API
    and `INIT {base64 protobuf}` for the initial snapshot.
 
 Both the socket and SSE endpoints answer `HTTP 500 LeagueId was either missing or invalid` for a
-pre-draft league **and for a live mock league**, so the JOIN query params (security token, member
-id, team id) are almost certainly required rather than optional.
+pre-draft league **and for a live mock league**, with a valid `draftSecurity` token, with the member
+id in either `{braces}` or bare form, and for a deliberately bogus league id alike — the same
+response for every input, so it reads as "no draft room exists for this league yet" rather than a
+rejected token. `…/league-{id}/…` without the `game-{gameId}` prefix answers `403`, so the path
+shape above is the right one. This is what `src/lib/espnLive.ts` implements: it keeps an SSE
+subscription open, treats any 5xx as "room not open yet" and retries every 20s, and merges the
+`SELECTED` events it receives into the polled board. It cannot be confirmed until a draft room
+actually exists for the league (a mock started from inside the league, or draft day).
 
 ### Live mock draft observations (2026-08-18)
 
