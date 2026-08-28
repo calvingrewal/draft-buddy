@@ -14,6 +14,11 @@ rosters, and how many picks until you're on the clock.
   cheatsheet gets loaded. Setup has a manual override if a league reports something odd.
 - **Picks** come from a server route that polls the platform: Sleeper's public draft API, and
   ESPN's private `lm-api-reads.fantasy.espn.com` v3 API using your league cookies.
+- **ESPN live picks** additionally come from the draft room itself: the server joins ESPN's draft
+  service (`fantasydraft.espn.com`) as your team and merges every `SELECTED` event into the polled
+  board, because ESPN's v3 board may not update mid-draft. The room only exists while a draft is
+  live, so before then the header just reports "Live draft room: not open yet" and retries. This
+  needs `DEFAULT_ESPN_TEAM_ID` or your team id in Setup.
 - **Matching** is by normalized name (suffixes, punctuation and team-defense naming are handled),
   so rankings from any site line up with platform picks.
 - **Manual cross-off** is always available: tap a player, say who took him. This is the fallback if
@@ -39,6 +44,28 @@ Environment variables:
 To get the ESPN cookies: log in at `fantasy.espn.com` on a desktop browser, then DevTools →
 Application → Cookies → `espn.com` → copy `espn_s2` and `SWID` (keep the braces on `SWID`).
 
+## Deploying to Vercel
+
+The app is a stock Next.js App Router project, so no Vercel config is needed:
+
+1. Push to GitHub (already done), then at [vercel.com/new](https://vercel.com/new) import
+   `calvingrewal/draft-buddy`. Framework detection, build command and output are all automatic.
+2. Before the first deploy, add the environment variables from the table above under
+   **Settings → Environment Variables** (Production + Preview): `ESPN_S2`, `ESPN_SWID`,
+   `DEFAULT_SEASON`, `DEFAULT_ESPN_LEAGUE_ID`, `DEFAULT_ESPN_TEAM_ID`,
+   `DEFAULT_SLEEPER_LEAGUE_ID`, `DEFAULT_SLEEPER_SLOT`. They stay server-side; nothing is
+   `NEXT_PUBLIC_`. Changing them later needs a redeploy to take effect.
+3. Deploy, open the URL on your phone, and "Add to Home Screen" so it runs full-screen as a PWA.
+
+Or from a terminal: `npx vercel@latest` (link the project), `npx vercel env add ESPN_S2` (repeat per
+variable), then `npx vercel --prod`.
+
+Caveat for ESPN's live feed: Vercel's serverless functions are frozen between requests, so the
+draft-room stream lives only as long as the function instance that opened it. Polling every few
+seconds while the app is open on your phone keeps an instance warm, and the v3 poll plus manual
+cross-off cover any gap — but an always-on host (Fly.io, Render, Railway, `npm run build && npm
+start` anywhere) keeps that stream connected for the whole draft.
+
 ## Scripts
 
 ```bash
@@ -56,6 +83,7 @@ npm test           # vitest (name matching, rankings parsing, snake order, needs
 - `src/lib/rankings.ts`, `src/lib/names.ts` — rankings import and cross-source player matching
 - `src/lib/fantasypros.ts`, `src/app/api/rankings/route.ts` — consensus cheatsheet fetch/parse
 - `src/lib/scoring.ts` — points-per-reception → Standard / Half PPR / Full PPR
+- `src/lib/espnLive.ts` — ESPN draft-room stream that fills picks the v3 board is missing
 - `src/app/api/draft/route.ts` — polled snapshot endpoint
 - `src/components/*` — Board / My team / Teams / Log / Setup tabs
 

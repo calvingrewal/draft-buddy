@@ -31,6 +31,13 @@ export interface LeagueScoring {
   detected: boolean;
 }
 
+export interface LiveFeedState {
+  status: string;
+  /** picks the stream supplied that the polled board was still missing */
+  filledPicks: number;
+  error: string | null;
+}
+
 export interface DraftState {
   platform: Platform;
   draftId: string;
@@ -46,6 +53,8 @@ export interface DraftState {
   onClockPickNo: number | null;
   onClockTeamId: string | null;
   scoring: LeagueScoring;
+  /** ESPN only: state of the draft-room stream that backs up v3 polling */
+  liveFeed?: LiveFeedState;
   updatedAt: number;
   notes?: string[];
 }

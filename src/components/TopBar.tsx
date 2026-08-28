@@ -116,6 +116,19 @@ export default function TopBar({
         {state?.status === "pre_draft" ? (
           <div className="pt-1 text-xs text-neutral-500">Draft has not started yet.</div>
         ) : null}
+        {state?.liveFeed && state.liveFeed.status !== "off" ? (
+          <div
+            className={`pt-1 text-xs ${
+              state.liveFeed.status === "live" ? "text-emerald-400" : "text-neutral-500"
+            }`}
+          >
+            {state.liveFeed.status === "live"
+              ? `Live draft room connected${
+                  state.liveFeed.filledPicks ? ` · ${state.liveFeed.filledPicks} live picks` : ""
+                }`
+              : `Live draft room: ${state.liveFeed.error ?? state.liveFeed.status}`}
+          </div>
+        ) : null}
       </div>
     </header>
   );
