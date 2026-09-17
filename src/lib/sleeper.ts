@@ -242,12 +242,16 @@ export async function getSleeperRostered(
     }
   }
 
-  // Draft slots are what the app stores for Sleeper, so resolve a slot to its roster id.
+  // The app stores a draft slot for Sleeper, and slots collide with roster ids (both 1..n),
+  // so the slot mapping wins whenever the draft defines one.
   let myRosterId = myTeamId ?? "";
-  if (myRosterId && !teams.some((t) => t.id === myRosterId)) {
-    const draft = await get<SleeperDraft>(`/draft/${league.draft_id}`).catch(() => null);
+  if (myRosterId) {
+    const draft = league.draft_id
+      ? await get<SleeperDraft>(`/draft/${league.draft_id}`).catch(() => null)
+      : null;
     const mapped = draft?.slot_to_roster_id?.[myRosterId];
-    myRosterId = mapped ? String(mapped) : "";
+    if (mapped) myRosterId = String(mapped);
+    else if (!teams.some((t) => t.id === myRosterId)) myRosterId = "";
   }
 
   return {
