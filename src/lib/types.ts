@@ -59,6 +59,55 @@ export interface DraftState {
   notes?: string[];
 }
 
+export interface WaiverSource {
+  url: string;
+  title: string;
+  week: number;
+}
+
+export interface WaiverSuggestion {
+  /** priority order within the source column */
+  rank: number;
+  name: string;
+  pos: string;
+  team: string | null;
+  /** percent of CBS leagues the player is rostered in, when published */
+  rosteredPct: number | null;
+  key: string;
+}
+
+/** Who currently holds every rostered player in one league. */
+export interface LeagueRoster {
+  platform: Platform;
+  leagueId: string;
+  leagueName: string;
+  myTeamId: string | null;
+  /** player key -> team id holding the player */
+  ownerByKey: Record<string, string>;
+  teams: DraftTeam[];
+}
+
+export interface WaiverAvailability {
+  platform: Platform;
+  leagueName: string;
+  /** null when nobody holds the player: free agent or on waivers */
+  ownerTeamId: string | null;
+  ownerTeamName: string | null;
+  mine: boolean;
+}
+
+export interface WaiverPlayer extends WaiverSuggestion {
+  leagues: WaiverAvailability[];
+}
+
+export interface WaiverReport {
+  source: WaiverSource;
+  season: string;
+  players: WaiverPlayer[];
+  leagues: Array<{ platform: Platform; leagueName: string; error: string | null }>;
+  updatedAt: number;
+}
+
 export interface RankedPlayer {
   rank: number;
   name: string;
