@@ -1,6 +1,6 @@
-import { normalizePos, normalizeTeam } from "./names";
+import { normalizePos, normalizeTeam, playerKey } from "./names";
 import { defaultScoring, scoringFromPpr } from "./scoring";
-import type { DraftPick, DraftState, DraftTeam } from "./types";
+import type { DraftPick, DraftState, DraftTeam, LeagueRoster } from "./types";
 
 const BASE = "https://api.sleeper.app/v1";
 
@@ -46,6 +46,15 @@ interface SleeperUser {
 interface SleeperRoster {
   roster_id: number;
   owner_id: string | null;
+  players?: string[] | null;
+}
+
+interface SleeperPlayer {
+  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  position?: string | null;
+  team?: string | null;
 }
 
 interface SleeperPick {
@@ -169,6 +178,85 @@ export async function getSleeperState(rawId: string): Promise<DraftState> {
       : null,
     updatedAt: Date.now(),
     notes,
+  };
+}
+
+let playerCache: { fetchedAt: number; byId: Map<string, SleeperPlayer> } | null = null;
+const PLAYER_TTL_MS = 12 * 60 * 60 * 1000;
+
+async function sleeperPlayerIndex(): Promise<Map<string, SleeperPlayer>> {
+  if (playerCache && Date.now() - playerCache.fetchedAt < PLAYER_TTL_MS) {
+    return playerCache.byId;
+  }
+  const res = await fetch("https://api.sleeper.app/v1/players/nfl", {
+    headers: { accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Sleeper players failed: HTTP ${res.status}`);
+  const body = (await res.json()) as Record<string, SleeperPlayer>;
+  const byId = new Map(Object.entries(body));
+  playerCache = { fetchedAt: Date.now(), byId };
+  return byId;
+}
+
+function sleeperPlayerName(p: SleeperPlayer): string {
+  return p.full_name || `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
+}
+
+/** Current rosters (not draft picks), used to tell who is actually available on waivers. */
+export async function getSleeperRostered(
+  rawId: string,
+  myTeamId?: string,
+): Promise<LeagueRoster> {
+  const id = extractId(rawId);
+  let league = await get<SleeperLeague>(`/league/${id}`).catch(() => null);
+  if (!league) {
+    // The saved id may be a draft id, which carries its league id.
+    const draft = await get<SleeperDraft>(`/draft/${id}`);
+    if (!draft.league_id) throw new Error(`Sleeper draft ${id} has no league`);
+    league = await get<SleeperLeague>(`/league/${draft.league_id}`);
+  }
+
+  const [users, rosters, players] = await Promise.all([
+    get<SleeperUser[]>(`/league/${league.league_id}/users`).catch(() => []),
+    get<SleeperRoster[]>(`/league/${league.league_id}/rosters`),
+    sleeperPlayerIndex(),
+  ]);
+  const userById = new Map(users.map((u) => [u.user_id, u]));
+
+  const ownerByKey: Record<string, string> = {};
+  const teams: DraftTeam[] = [];
+  for (const roster of rosters) {
+    const user = roster.owner_id ? userById.get(roster.owner_id) : undefined;
+    teams.push({
+      id: String(roster.roster_id),
+      slot: null,
+      name:
+        user?.metadata?.team_name || user?.display_name || `Team ${roster.roster_id}`,
+    });
+    for (const playerId of roster.players ?? []) {
+      const player = players.get(playerId);
+      const name = player ? sleeperPlayerName(player) : "";
+      if (!name) continue;
+      ownerByKey[playerKey(name, player?.position, player?.team)] = String(roster.roster_id);
+    }
+  }
+
+  // Draft slots are what the app stores for Sleeper, so resolve a slot to its roster id.
+  let myRosterId = myTeamId ?? "";
+  if (myRosterId && !teams.some((t) => t.id === myRosterId)) {
+    const draft = await get<SleeperDraft>(`/draft/${league.draft_id}`).catch(() => null);
+    const mapped = draft?.slot_to_roster_id?.[myRosterId];
+    myRosterId = mapped ? String(mapped) : "";
+  }
+
+  return {
+    platform: "sleeper",
+    leagueId: league.league_id,
+    leagueName: league.name,
+    myTeamId: myRosterId || null,
+    ownerByKey,
+    teams,
   };
 }
 

@@ -1,9 +1,9 @@
 import type { EspnSelection } from "./espnLive";
 import { espnLiveFeed } from "./espnLive";
-import { normalizePos } from "./names";
+import { normalizePos, playerKey } from "./names";
 import { defaultScoring, scoringFromPpr } from "./scoring";
 import { snakeTeamId } from "./sleeper";
-import type { DraftPick, DraftState, DraftTeam, PlayerRef } from "./types";
+import type { DraftPick, DraftState, DraftTeam, LeagueRoster, PlayerRef } from "./types";
 
 const BASE = "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl";
 
@@ -222,6 +222,67 @@ export function applyLiveSelections(
     filled++;
   }
   return filled;
+}
+
+interface EspnRosterLeague {
+  settings: { name: string };
+  teams: Array<{
+    id: number;
+    name?: string;
+    abbrev?: string;
+    location?: string;
+    nickname?: string;
+    owners?: string[];
+    roster?: {
+      entries?: Array<{
+        playerId: number;
+        playerPoolEntry?: { player?: EspnPlayer };
+      }>;
+    };
+  }>;
+}
+
+function espnTeamName(t: EspnRosterLeague["teams"][number]): string {
+  return (
+    t.name ||
+    [t.location, t.nickname].filter(Boolean).join(" ") ||
+    t.abbrev ||
+    `Team ${t.id}`
+  );
+}
+
+/** Current rosters (not draft picks), used to tell who is actually available on waivers. */
+export async function getEspnRostered(
+  rawId: string,
+  seasonFallback: string,
+  myTeamId?: string,
+): Promise<LeagueRoster> {
+  const { leagueId, season } = parseEspnTarget(rawId, seasonFallback);
+  const league = await espnGet<EspnRosterLeague>(
+    `/seasons/${season}/segments/0/leagues/${leagueId}?view=mRoster&view=mTeam&view=mSettings`,
+  );
+  const ownerByKey: Record<string, string> = {};
+  for (const team of league.teams) {
+    for (const entry of team.roster?.entries ?? []) {
+      const player = entry.playerPoolEntry?.player;
+      if (!player?.fullName) continue;
+      const key = playerKey(
+        player.fullName,
+        normalizePos(POSITIONS[player.defaultPositionId] ?? ""),
+        PRO_TEAMS[player.proTeamId] ?? null,
+      );
+      ownerByKey[key] = String(team.id);
+    }
+  }
+  const mine = myTeamId ? league.teams.find((t) => String(t.id) === myTeamId) : undefined;
+  return {
+    platform: "espn",
+    leagueId,
+    leagueName: league.settings.name,
+    myTeamId: mine ? String(mine.id) : null,
+    ownerByKey,
+    teams: league.teams.map((t) => ({ id: String(t.id), name: espnTeamName(t), slot: null })),
+  };
 }
 
 export async function getEspnState(

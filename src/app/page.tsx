@@ -7,6 +7,7 @@ import PlayerSheet from "@/components/PlayerSheet";
 import { MyTeam, OtherTeams } from "@/components/Rosters";
 import Setup, { type ServerConfig } from "@/components/Setup";
 import TopBar from "@/components/TopBar";
+import Waivers from "@/components/Waivers";
 import type { BoardRow } from "@/lib/derive";
 import {
   buildDraftedIndex,
@@ -18,7 +19,7 @@ import { useAppState } from "@/lib/store";
 import type { Platform } from "@/lib/types";
 import { useDraftFeed } from "@/lib/useDraftFeed";
 
-const TABS = ["Board", "My team", "Teams", "Log", "Setup"] as const;
+const TABS = ["Board", "My team", "Teams", "Log", "Wire", "Setup"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function Home() {
@@ -130,6 +131,7 @@ export default function Home() {
         <OtherTeams state={feed.state} rosters={rosters} myTeamId={draft.myTeamId} />
       ) : null}
       {tab === "Log" ? <PickLog state={feed.state} myTeamId={draft.myTeamId} /> : null}
+      {tab === "Wire" ? <Waivers app={app} /> : null}
       {tab === "Setup" ? (
         <Setup
           app={app}
